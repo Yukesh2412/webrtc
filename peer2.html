@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Peer 2</title>
+  </head>
+  <body>
+    <p>Peer 2</p>
+    <input type="text" id="sdp" placeholder="Enter SDP" />
+    <button onclick="submit()">Connect</button>
+    <br /><br />
+    <div>
+      <input type="text" id="message" placeholder="Enter message" />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+    
+      <p id="messages"></p>
+  </body>
+  <script>
+    var messages = [];
+    var paragraphElement = document.getElementById("messages");
+
+    function updateParagraph() {
+      var content = "History:<br>";
+      messages.forEach(function (value, index) {
+        content += `${index + 1}. ${value}<br>`;
+      });
+      paragraphElement.innerHTML = content;
+    }
+    const peer = new RTCPeerConnection();
+    var receivedChannel;
+
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log(
+          "SDP added, here is new",
+          JSON.stringify(peer.localDescription)
+        );
+      }
+    };
+
+    function submit() {
+      peer
+        .setRemoteDescription(JSON.parse(document.getElementById("sdp").value))
+        .then(() => peer.createAnswer())
+        .then((answer) => peer.setLocalDescription(answer))
+        .catch((error) =>
+          console.error(
+            "Error setting remote description or creating answer:",
+            error
+          )
+        );
+    }
+
+    peer.ondatachannel = (e) => {
+      receivedChannel = e.channel;
+
+      receivedChannel.onmessage = (event) => {
+        console.log("Message received", event.data);
+        messages.push(event.data);
+        updateParagraph();
+      };
+
+      receivedChannel.onopen = () => {
+        console.log("Data channel open");
+      };
+
+      receivedChannel.onclose = () => {
+        console.log("Data channel close");
+      };
+    };
+
+    function sendMessage() {
+      const message = document.getElementById("message").value;
+      receivedChannel.send(message);
+      messages.push(message);
+      updateParagraph();
+    }
+  </script>
+</html>
