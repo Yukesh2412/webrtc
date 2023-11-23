@@ -14,68 +14,111 @@
       <input type="text" id="message" placeholder="Enter message" />
       <button onclick="sendMessage()">Send</button>
     </div>
-    
-      <p id="messages"></p>
-  </body>
-  <script>
-    var messages = [];
-    var paragraphElement = document.getElementById("messages");
+    <p id="messages"></p>
+    <div>SDP:<br /><span id="peer-sdp"></span></div>
+    <br />
+    <div>Status:<br /><span id="peer-status"></span></div>
 
-    function updateParagraph() {
-      var content = "History:<br>";
-      messages.forEach(function (value, index) {
-        content += `${index + 1}. ${value}<br>`;
-      });
-      paragraphElement.innerHTML = content;
-    }
-    const peer = new RTCPeerConnection();
-    var receivedChannel;
+    <script>
+      var messages = [];
+      var SDP;
+      var sdpElement = document.getElementById("peer-sdp");
+      var statusElement = document.getElementById("peer-status");
+      var paragraphElement = document.getElementById("messages");
 
-    peer.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log(
-          "SDP added, here is new",
-          JSON.stringify(peer.localDescription)
-        );
+      function updateParagraph() {
+        var content = "History:<br>";
+        messages.forEach(function (value, index) {
+          content += `${index + 1}. ${value}<br>`;
+        });
+        paragraphElement.innerHTML = content;
       }
-    };
 
-    function submit() {
-      peer
-        .setRemoteDescription(JSON.parse(document.getElementById("sdp").value))
-        .then(() => peer.createAnswer())
-        .then((answer) => peer.setLocalDescription(answer))
-        .catch((error) =>
-          console.error(
-            "Error setting remote description or creating answer:",
-            error
+      const peer = new RTCPeerConnection();
+      var receivedChannel;
+      var receivedFile = {
+        metadata: null,
+        parts: [],
+      };
+
+      peer.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log(
+            "SDP added, here is new",
+            JSON.stringify(peer.localDescription)
+          );
+          SDP = JSON.stringify(peer.localDescription);
+          sdpElement.innerHTML = SDP;
+        }
+      };
+
+      function submit() {
+        peer
+          .setRemoteDescription(
+            JSON.parse(document.getElementById("sdp").value)
           )
-        );
-    }
+          .then(() => peer.createAnswer())
+          .then((answer) => peer.setLocalDescription(answer))
+          .catch((error) =>
+            console.error(
+              "Error setting remote description or creating answer:",
+              error
+            )
+          );
+      }
 
-    peer.ondatachannel = (e) => {
-      receivedChannel = e.channel;
+      peer.ondatachannel = (e) => {
+        receivedChannel = e.channel;
 
-      receivedChannel.onmessage = (event) => {
-        console.log("Message received", event.data);
-        messages.push(event.data);
+        receivedChannel.onmessage = (event) => {
+          const data = event.data;
+          if (typeof data === "string") {
+            // File metadata received
+            receivedFile.metadata = JSON.parse(data);
+            console.log("Received file:", receivedFile.metadata);
+          } else if (data instanceof ArrayBuffer) {
+            // File data received
+            receivedFile.parts.push(data);
+            createDownloadLink(receivedFile.metadata);
+          }
+        };
+
+        receivedChannel.onopen = () => {
+          console.log("Data channel open");
+          statusElement.innerHTML = "Data channel open";
+        };
+
+        receivedChannel.onclose = () => {
+          // Reset receivedFile for future transfers
+          receivedFile = {
+            metadata: null,
+            parts: [],
+          };
+          statusElement.innerHTML = "Data channel closed";
+        };
+      };
+
+      function createDownloadLink(file) {
+        const downloadLink = document.createElement("a");
+        const blob = new Blob(receivedFile.parts, {
+          type: "application/octet-stream",
+        });
+        const url = window.URL.createObjectURL(blob);
+
+        downloadLink.href = url;
+        downloadLink.download = file.filename;
+        downloadLink.textContent = "Download File";
+
+        // Append the download link to the body
+        document.body.appendChild(downloadLink);
+      }
+
+      function sendMessage() {
+        const message = document.getElementById("message").value;
+        receivedChannel.send(message);
+        messages.push(message);
         updateParagraph();
-      };
-
-      receivedChannel.onopen = () => {
-        console.log("Data channel open");
-      };
-
-      receivedChannel.onclose = () => {
-        console.log("Data channel close");
-      };
-    };
-
-    function sendMessage() {
-      const message = document.getElementById("message").value;
-      receivedChannel.send(message);
-      messages.push(message);
-      updateParagraph();
-    }
-  </script>
+      }
+    </script>
+  </body>
 </html>

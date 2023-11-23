@@ -9,49 +9,76 @@
     <p>Peer 1</p>
     <input type="text" id="sdp" placeholder="Enter SDP" />
     <button onclick="submit()">Connect</button>
-<br><br>
+    <br /><br />
     <div>
       <input type="text" id="message" placeholder="Enter message" />
       <button onclick="sendMessage()">Send</button>
     </div>
+    <input type="file" id="fileInput" />
+    <button onclick="startSharing()">Start Sharing</button>
     <p id="messages"></p>
+    <div>SDP:<br /><span id="peer-sdp"></span></div>
+    <br />
+    <div>Status:<br /><span id="peer-status"></span></div>
   </body>
   <script>
-    var messages=[]
+    var messages = [];
     const peer = new RTCPeerConnection();
+    var SDP;
+    var sdpElement = document.getElementById("peer-sdp");
+    var statusElement = document.getElementById("peer-status");
+
     const dataChannel = peer.createDataChannel("datachannel");
+    const fileInput = document.getElementById("fileInput");
 
     var paragraphElement = document.getElementById("messages");
 
-function updateParagraph() {
-    var content = "History:<br>";
-    messages.forEach(function(value, index) {
+    function updateParagraph() {
+      var content = "History:<br>";
+      messages.forEach(function (value, index) {
         content += `${index + 1}. ${value}<br>`;
-    });
-    paragraphElement.innerHTML = content;
-}
-
+      });
+      paragraphElement.innerHTML = content;
+    }
+    async function startSharing() {
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("Please select a file");
+        return;
+      }
+      dataChannel.send(
+        JSON.stringify({ filename: file.name, size: file.size })
+      );
+      const blob = new Blob([file]);
+      const buffer = await blob.arrayBuffer();
+      dataChannel.send(buffer);
+     
+    }
     peer.onicecandidate = (event) => {
       if (event.candidate) {
         console.log(
           "SDP added, here is new",
           JSON.stringify(peer.localDescription)
         );
+        SDP = JSON.stringify(peer.localDescription);
+        sdpElement.innerHTML = SDP;
       }
     };
 
     dataChannel.onmessage = (event) => {
-      console.log("Message received",event.data);
+      console.log("Message received", event.data);
       messages.push(event.data);
       updateParagraph();
     };
 
     dataChannel.onopen = () => {
       console.log("Data channel open");
+      statusElement.innerHTML = "Data channel open";
     };
 
     dataChannel.onclose = () => {
       console.log("Data channel close");
+      statusElement.innerHTML = "Data channel open";
     };
 
     peer
@@ -64,7 +91,7 @@ function updateParagraph() {
       peer.setRemoteDescription(remoteSdp);
     }
 
-    function sendMessage(){
+    function sendMessage() {
       const message = document.getElementById("message").value;
       dataChannel.send(message);
       messages.push(message);
