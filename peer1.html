@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Peer 1</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.1.2/socket.io.js"></script>
   </head>
   <body>
     <p>Peer 1</p>
@@ -14,12 +15,13 @@
       <input type="text" id="message" placeholder="Enter message" />
       <button onclick="sendMessage()">Send</button>
     </div>
-    <input type="file" id="fileInput" />
+    <input type="file" id="fileInput" placeholder="Select file" />
     <button onclick="startSharing()">Start Sharing</button>
     <p id="messages"></p>
     <div>SDP:<br /><span id="peer-sdp"></span></div>
     <br />
     <div>Status:<br /><span id="peer-status"></span></div>
+    <button onclick="socketfunc()">socket</button>
   </body>
   <script>
     var messages = [];
@@ -32,6 +34,12 @@
     const fileInput = document.getElementById("fileInput");
 
     var paragraphElement = document.getElementById("messages");
+
+    const socket = io("http://localhost:3000");
+
+    function socketfunc() {
+      socket.emit("offer", "im the offer");
+    }
 
     function updateParagraph() {
       var content = "History:<br>";
@@ -49,10 +57,16 @@
       dataChannel.send(
         JSON.stringify({ filename: file.name, size: file.size })
       );
-      const blob = new Blob([file]);
-      const buffer = await blob.arrayBuffer();
-      dataChannel.send(buffer);
-     
+      // const blob = new Blob([file]);
+      // const buffer = await blob.arrayBuffer();
+      const fileReader = new FileReader();
+      fileReader.onload = function (event) {
+        const buffer = event.target.result;
+        dataChannel.send(buffer);
+        console.log("File sent");
+      };
+
+      fileReader.readAsArrayBuffer(file);
     }
     peer.onicecandidate = (event) => {
       if (event.candidate) {
@@ -99,3 +113,7 @@
     }
   </script>
 </html>
+
+
+
+
