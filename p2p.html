@@ -1,14 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2P</title>
+    <style>
+        #user-list {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #user-list li {
+            margin-bottom: 10px;
+        }
+    </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.1.2/socket.io.js"></script>
-  </head>
-  <body>
-    <button onclick="socketfunc()">Send</button>
+</head>
+<body>
+    <h2>Connected Users</h2>
+    <ul id="user-list"></ul>
+
+    <input type="text" id="messageInput" />
+    <button onclick="sendMessage()">Send</button>
+
+    <ul id="messages"></ul>
 
     <script src="p2p.js"></script>
-  </body>
+</body>
 </html>

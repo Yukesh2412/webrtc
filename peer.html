@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P2P</title>
+  <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+</head>
+<body>
+
+  <p>Connected Users: <span id="userCount">0</span></p>
+  <ul id="userList"></ul>
+
+  <!-- Add the following code inside the <body> tag -->
+  <input type="text" id="messageInput" placeholder="Type your message">
+  <button onclick="sendMessage()">Send</button>
+  <ul id="chatMessages"></ul>
+
+  <script>
+    const socket = io();
+
+    // Listen for the updateUsers event from the server
+    socket.on('updateUsers', (usernames) => {
+      const userCountElement = document.getElementById('userCount');
+      const userListElement = document.getElementById('userList');
+
+      // Update the user count
+      userCountElement.textContent = usernames.length;
+
+      // Update the user list
+      userListElement.innerHTML = '';
+      usernames.forEach((username) => {
+        const li = document.createElement('li');
+        li.textContent = username;
+        userListElement.appendChild(li);
+      });
+    });
+
+    // Listen for chat messages from the server
+    socket.on('chatMessage', (data) => {
+      const chatMessagesElement = document.getElementById('chatMessages');
+      const li = document.createElement('li');
+      li.textContent = `${data.username}: ${data.message}`;
+      chatMessagesElement.appendChild(li);
+    });
+
+    // Function to send a chat message
+    function sendMessage() {
+      const messageInput = document.getElementById('messageInput');
+      const message = messageInput.value.trim();
+
+      if (message !== '') {
+        socket.emit('chatMessage', { message });
+        messageInput.value = '';
+      }
+    }
+  </script>
+
+</body>
+</html>
