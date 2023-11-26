@@ -1,5 +1,3 @@
-// Install required packages
-// npm install express socket.io
 
 const express = require('express');
 const http = require('http');
