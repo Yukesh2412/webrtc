@@ -1,4 +1,3 @@
-
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
@@ -12,50 +11,72 @@ const io = socketIO(server, {
   },
 });
 const usernames = [];
+const sdpOffers = {}; // Store SDP offers on the server
+const sdpAnswers = {}; // Store SDP answers on the server
 
-// Serve index.html
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/peer.html');
 });
 
-// Handle socket connections
 io.on('connection', (socket) => {
-  // Generate a random username and assign it to the socket
   const username = generateRandomUsername();
   socket.username = username;
-
-  // Add the new user to the array of usernames
   usernames.push(username);
 
-  // Broadcast to all clients when a new user connects
-  io.emit('updateUsers', usernames);
+  // Share the new peer's SDP offer with the server
+  socket.on('shareSdpOffer', (offer) => {
+    sdpOffers[socket.id] = offer;
 
-  // Log when a user connects
+    // Provide the new peer with the SDP offers of existing peers
+    io.emit('allSdpOffers', getAllSdpOffers(socket.id));
+  });
+
+  // Handle SDP answer from the client
+  socket.on('shareSdpAnswer', (answer) => {
+    sdpAnswers[socket.id] = answer;
+
+    io.emit('allSdpAnswers', getAllSdpAnswers(socket.id));
+  });
+
+  io.emit('updateUsers', usernames);
   console.log(`${username} connected`);
 
-  // Listen for disconnect event
   socket.on('disconnect', () => {
-    // Remove the user from the array of usernames
     const index = usernames.indexOf(username);
     if (index !== -1) {
       usernames.splice(index, 1);
     }
 
-    // Broadcast to all clients when a user disconnects
-    io.emit('updateUsers', usernames);
+    // Remove the SDP offer and answer of the disconnected peer
+    delete sdpOffers[socket.id];
+    delete sdpAnswers[socket.id];
 
-    // Log when a user disconnects
+    io.emit('updateUsers', usernames);
     console.log(`${username} disconnected`);
   });
 
-  // Listen for chat messages from clients
   socket.on('chatMessage', (data) => {
-    // Broadcast the message to all clients
     io.emit('chatMessage', { username, message: data.message });
   });
 });
 
-// Helper function to generate a random username
+function getAllSdpOffers(excludedSocketId) {
+  return Object.keys(sdpOffers)
+    .filter((socketId) => socketId !== excludedSocketId)
+    .map((socketId) => ({
+      socketId,
+      offer: sdpOffers[socketId],
+    }));
+}
+function getAllSdpAnswers(excludedSocketId) {
+  return Object.keys(sdpAnswers)
+    .filter((socketId) => socketId !== excludedSocketId)
+    .map((socketId) => ({
+      socketId,
+      answer: sdpOffers[socketId],
+    }));
+}
+
 function generateRandomUsername() {
   const adjectives = ['Red', 'Blue', 'Green', 'Happy', 'Sad', 'Lucky'];
   const nouns = ['Cat', 'Dog', 'Fish', 'Sun', 'Moon', 'Star'];
@@ -70,7 +91,6 @@ function generateRandomUsername() {
   return username;
 }
 
-// Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

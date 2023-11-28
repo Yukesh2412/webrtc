@@ -1,60 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>P2P</title>
-  <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>P2P</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+  </head>
+  <body>
+    <p>Connected Users: <span id="userCount">0</span></p>
+    <ul id="userList"></ul>
 
-  <p>Connected Users: <span id="userCount">0</span></p>
-  <ul id="userList"></ul>
+    <!-- Add the following code inside the <body> tag -->
+    <input type="text" id="messageInput" placeholder="Type your message" />
+    <button onclick="sendMessage()">Send</button>
+    <ul id="chatMessages"></ul>
 
-  <!-- Add the following code inside the <body> tag -->
-  <input type="text" id="messageInput" placeholder="Type your message">
-  <button onclick="sendMessage()">Send</button>
-  <ul id="chatMessages"></ul>
+    <script>
+      const socket = io();
+      const peer = new RTCPeerConnection();
+      const dataChannel = peer.createDataChannel("datachannel");
+      const connectedPeers = new Set(); // Keep track of connected peers
 
-  <script>
-    const socket = io();
+      peer.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log(
+            "SDP added, here is new",
+            JSON.stringify(peer.localDescription)
+          );
+        }
+      };
 
-    // Listen for the updateUsers event from the server
-    socket.on('updateUsers', (usernames) => {
-      const userCountElement = document.getElementById('userCount');
-      const userListElement = document.getElementById('userList');
+      peer
+        .createOffer()
+        .then((offer) => peer.setLocalDescription(offer))
+        .then(() => {
+          // Emit the SDP offer to the server
+          socket.emit("shareSdpOffer", {
+            username: "s",
+            offer: peer.localDescription,
+          });
+          console.log("Shared SDP offer", peer.localDescription);
+        })
+        .catch((error) => console.error("Error creating offer:", error));
 
-      // Update the user count
-      userCountElement.textContent = usernames.length;
+      // Listen for the updateUsers event from the server
+      socket.on("updateUsers", (usernames) => {
+        const userCountElement = document.getElementById("userCount");
+        const userListElement = document.getElementById("userList");
 
-      // Update the user list
-      userListElement.innerHTML = '';
-      usernames.forEach((username) => {
-        const li = document.createElement('li');
-        li.textContent = username;
-        userListElement.appendChild(li);
+        // Update the user count
+        userCountElement.textContent = usernames.length;
+
+        // Update the user list
+        userListElement.innerHTML = "";
+        usernames.forEach((username) => {
+          const li = document.createElement("li");
+          li.textContent = username;
+          userListElement.appendChild(li);
+        });
       });
-    });
 
-    // Listen for chat messages from the server
-    socket.on('chatMessage', (data) => {
-      const chatMessagesElement = document.getElementById('chatMessages');
-      const li = document.createElement('li');
-      li.textContent = `${data.username}: ${data.message}`;
-      chatMessagesElement.appendChild(li);
-    });
+      // Listen for SDP offers from the server
+      socket.on("allSdpOffers", (offersData) => {
+        offersData.forEach((offerData) => {
+          if (offerData.offer && offerData.offer.offer) {
+            const remoteSdp = new RTCSessionDescription(offerData.offer.offer);
+            console.log("Received SDP offer", offerData);
 
-    // Function to send a chat message
-    function sendMessage() {
-      const messageInput = document.getElementById('messageInput');
-      const message = messageInput.value.trim();
+            // Check if a connection is already established with this peer
+            if (!connectedPeers.has(offerData.socketId)) {
+              // Create SDP answer
+              peer
+                .setRemoteDescription(remoteSdp)
+                .then(() => peer.createAnswer())
+                .then((answer) => peer.setLocalDescription(answer))
+                .then(() => {
+                  // Emit the SDP answer to the server
+                  socket.emit("shareSdpAnswer", {
+                    username: "s",
+                    answer: peer.localDescription,
+                    targetSocketId: offerData.socketId,
+                  });
+                  console.log("Shared SDP answer", peer.localDescription);
+                  // Mark this peer as connected
+                  connectedPeers.add(offerData.socketId);
+                })
+                .catch((error) =>
+                  console.error("Error creating answer:", error)
+                );
+            }
+          }
+        });
+      });
 
-      if (message !== '') {
-        socket.emit('chatMessage', { message });
-        messageInput.value = '';
+      // Listen for SDP answers from the server
+      socket.on("allSdpAnswers", (answerData) => {
+        // const remoteAnswer = new RTCSessionDescription(answerData.answer);
+        console.log("Received SDP answer", answerData);
+        // Apply the received answer
+        // peer.setRemoteDescription(remoteAnswer);
+      });
+
+      // Listen for chat messages from the server
+      socket.on("chatMessage", (data) => {
+        const chatMessagesElement = document.getElementById("chatMessages");
+        const li = document.createElement("li");
+        li.textContent = `${data.username}: ${data.message}`;
+        chatMessagesElement.appendChild(li);
+      });
+
+      // Function to send a chat message
+      function sendMessage() {
+        const messageInput = document.getElementById("messageInput");
+        const message = messageInput.value.trim();
+
+        if (message !== "") {
+          socket.emit("chatMessage", { message });
+          messageInput.value = "";
+        }
       }
-    }
-  </script>
-
-</body>
+    </script>
+  </body>
 </html>

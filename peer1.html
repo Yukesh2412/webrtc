@@ -71,7 +71,7 @@
     peer.onicecandidate = (event) => {
       if (event.candidate) {
         console.log(
-          "SDP added, here is new",
+          "ICE CAndi added, here is new",
           JSON.stringify(peer.localDescription)
         );
         SDP = JSON.stringify(peer.localDescription);
